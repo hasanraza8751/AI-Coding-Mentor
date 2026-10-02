@@ -1,0 +1,84 @@
+{
+  "name": "ai-coding-mentor",
+  "displayName": "AI Coding Mentor",
+  "description": "Local-first AI coding mentor (Milestone 2: sidebar chat + local backend, mock responses).",
+  "version": "0.1.0",
+  "publisher": "ai-coding-mentor",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:aiCodingMentor.chatView",
+    "onCommand:aiCodingMentor.openMentor"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "ai-coding-mentor",
+          "title": "AI Coding Mentor",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "ai-coding-mentor": [
+        {
+          "id": "aiCodingMentor.chatView",
+          "name": "Mentor Chat",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "aiCodingMentor.openMentor",
+        "title": "AI Coding Mentor: Open Mentor Chat"
+      },
+      {
+        "command": "aiCodingMentor.clearConversation",
+        "title": "AI Coding Mentor: Clear Conversation",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "aiCodingMentor.clearConversation",
+          "when": "view == aiCodingMentor.chatView",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Coding Mentor",
+      "properties": {
+        "aiCodingMentor.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL of the local AI Coding Mentor backend (no trailing /api/chat)."
+        },
+        "aiCodingMentor.requestTimeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "description": "HTTP timeout in milliseconds for backend chat requests (local LLM inference can be slow)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

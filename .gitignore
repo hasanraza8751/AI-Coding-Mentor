@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Keep environment templates
+!.env.example
+
+# TypeScript build output
+dist/
+out/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code temporary logs
+.vscode/*.log
