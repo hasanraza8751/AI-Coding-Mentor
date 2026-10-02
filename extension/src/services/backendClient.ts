@@ -9,6 +9,8 @@
  * All failures surface as BackendError with a human-readable message
  * the provider forwards to the WebView as an error bubble.
  */
+import type { EnglishCorrection, MentorResponse } from '../types';
+
 export class BackendError extends Error {
   constructor(message: string) {
     super(message);
@@ -18,6 +20,7 @@ export class BackendError extends Error {
 
 interface ChatSuccessBody {
   answer?: unknown;
+  english?: unknown;
 }
 
 interface ApiErrorBody {
@@ -34,7 +37,7 @@ export class BackendClient {
     return `${this.baseUrl.replace(/\/+$/, '')}/api/chat`;
   }
 
-  public async sendMessage(message: string): Promise<string> {
+  public async sendMessage(message: string): Promise<MentorResponse> {
     const url = this.chatUrl();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -82,9 +85,41 @@ export class BackendClient {
         );
       }
 
-      return data.answer;
+      return { answer: data.answer, english: normalizeCorrection(data.english) };
     } finally {
       clearTimeout(timer);
     }
   }
+}
+
+/**
+ * Normalize the English correction block. The backend guarantees the
+ * shape, but a strict check here keeps a backend regression from
+ * breaking the WebView — fall back to "no correction" instead.
+ */
+function normalizeCorrection(value: unknown): EnglishCorrection {
+  const fallback: EnglishCorrection = {
+    needsCorrection: false,
+    original: '',
+    corrected: '',
+    explanation: ''
+  };
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return fallback;
+  }
+  const record = value as Record<string, unknown>;
+  if (typeof record.needsCorrection !== 'boolean') {
+    return fallback;
+  }
+  const text = (field: unknown): string =>
+    typeof field === 'string' ? field : '';
+  if (!record.needsCorrection) {
+    return fallback;
+  }
+  return {
+    needsCorrection: true,
+    original: text(record.original),
+    corrected: text(record.corrected),
+    explanation: text(record.explanation)
+  };
 }

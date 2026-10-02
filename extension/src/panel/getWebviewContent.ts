@@ -6,6 +6,7 @@
  *
  * The client script (embedded below):
  *  - renders user + assistant + error bubbles into #conversation
+ *  - renders an optional secondary English-correction card above the answer
  *  - sends { type: 'sendMessage' } to the extension host
  *  - listens for { type: 'assistantResponse' | 'errorResponse' | 'clearConversation' }
  *  - shows a "thinking" bubble while waiting for the backend
@@ -74,6 +75,26 @@ export function getWebviewContent(): string {
       color: var(--vscode-errorForeground, #f14c4c);
       background: var(--vscode-inputValidation-errorBackground, transparent);
       border: 1px solid var(--vscode-inputValidation-errorBorder, #f14c4c);
+    }
+    /* English correction: deliberately secondary to the coding answer. */
+    .english-card {
+      border-left: 3px solid var(--vscode-textLink-foreground, #4c9aff);
+      background: var(--vscode-textBlockQuote-background, transparent);
+      padding: 6px 8px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      font-size: 0.92em;
+      opacity: 0.95;
+    }
+    .english-card .ec-title {
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .english-card .ec-row {
+      margin: 2px 0;
+    }
+    .english-card .ec-label {
+      font-weight: 600;
     }
     #inputRow {
       display: flex;
@@ -164,6 +185,46 @@ export function getWebviewContent(): string {
         return div;
       }
 
+      function addMentorResponse(answer, english) {
+        const div = document.createElement('div');
+        div.className = 'message assistant';
+        if (english && english.needsCorrection === true) {
+          div.appendChild(buildEnglishCard(english));
+        }
+        const answerEl = document.createElement('div');
+        answerEl.className = 'mentor-answer';
+        // textContent is safe against HTML injection.
+        answerEl.textContent = 'Mentor: ' + String(answer || '');
+        div.appendChild(answerEl);
+        conversation.appendChild(div);
+        conversation.scrollTop = conversation.scrollHeight;
+        return div;
+      }
+
+      function buildEnglishCard(english) {
+        const card = document.createElement('div');
+        card.className = 'english-card';
+        const title = document.createElement('div');
+        title.className = 'ec-title';
+        title.textContent = 'English correction';
+        card.appendChild(title);
+        card.appendChild(buildEnglishRow('Original: ', english.original));
+        card.appendChild(buildEnglishRow('Better: ', english.corrected));
+        card.appendChild(buildEnglishRow('Why: ', english.explanation));
+        return card;
+      }
+
+      function buildEnglishRow(label, value) {
+        const row = document.createElement('div');
+        row.className = 'ec-row';
+        const labelEl = document.createElement('span');
+        labelEl.className = 'ec-label';
+        labelEl.textContent = label;
+        row.appendChild(labelEl);
+        row.appendChild(document.createTextNode(String(value || '')));
+        return row;
+      }
+
       function setThinking(on) {
         if (on && !thinkingBubble) {
           thinkingBubble = document.createElement('div');
@@ -222,7 +283,7 @@ export function getWebviewContent(): string {
         }
         if (msg.type === 'assistantResponse') {
           setThinking(false);
-          addMessage('assistant', String(msg.text || ''));
+          addMentorResponse(msg.answer, msg.english);
         } else if (msg.type === 'errorResponse') {
           setThinking(false);
           addMessage('error', String(msg.text || 'Backend request failed.'));

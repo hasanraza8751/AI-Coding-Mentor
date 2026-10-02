@@ -1,8 +1,10 @@
-# AI Coding Mentor — Extension (Milestone 2)
+# AI Coding Mentor — Extension (Milestone 4)
 
-Sidebar chat UI that calls the local backend over HTTP.
-No Ollama, Qwen3, voice, Whisper, Piper, RAG, tools, or database yet —
-the backend currently returns mock responses.
+Sidebar chat UI that calls the local backend over HTTP and renders the
+structured mentor response: a secondary English-correction card (shown
+only when the backend flags a meaningful mistake) above the primary
+coding answer. No voice, RAG, tools, or database — those are later
+milestones.
 
 ## Prerequisites
 
@@ -30,7 +32,8 @@ Output goes to `extension/out/`.
 Settings (defaults work for local dev):
 
 - `aiCodingMentor.backendUrl` — default `http://localhost:3000`
-- `aiCodingMentor.requestTimeoutMs` — default `15000`
+- `aiCodingMentor.requestTimeoutMs` — default `120000` (local LLM
+  inference can be slow; keep in line with server `OLLAMA_TIMEOUT_MS`)
 
 Must match the server `PORT`.
 

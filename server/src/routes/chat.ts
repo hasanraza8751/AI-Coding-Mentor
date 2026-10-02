@@ -10,11 +10,13 @@ import type {
 } from '../types';
 
 /**
- * POST /api/chat — mentor chat endpoint (Milestone 3: Ollama-backed).
+ * POST /api/chat — mentor chat endpoint (Milestone 4: structured).
  *
- * Contract (unchanged from Milestone 2):
+ * Contract:
  *   request  { "message": string, "conversationId"?: string }
- *   success  200 { "answer": string }
+ *   success  200 { "english": { "needsCorrection": bool, "original": string,
+ *                  "corrected": string, "explanation": string },
+ *                  "answer": string }
  *   failure  400 { "error": string } for invalid/empty message
  *            502/503/504 { "error": string } for model/backend failures
  *            500 { "error": string } for unexpected errors
@@ -59,7 +61,7 @@ export function registerChatRoutes(
       );
 
       const answer = await mentorService.getResponse(message, sessionId);
-      const ok: ChatSuccessResponse = { answer };
+      const ok: ChatSuccessResponse = answer;
       res.status(200).json(ok);
     } catch (error) {
       if (error instanceof MentorServiceError) {

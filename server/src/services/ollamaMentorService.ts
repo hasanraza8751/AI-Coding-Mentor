@@ -1,6 +1,8 @@
 import { MENTOR_SYSTEM_PROMPT } from '../prompts/mentorSystemPrompt';
+import type { MentorResponse } from '../types';
 import { ConversationStore } from './conversationStore';
 import { MentorService, MentorServiceError } from './mentorService';
+import { parseMentorResponse } from './mentorResponseParser';
 
 interface OllamaChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -13,12 +15,14 @@ interface OllamaChatResponse {
 }
 
 /**
- * Ollama-backed mentor (Milestone 3). Talks to the local Ollama HTTP API
- * with the configured model (default qwen3:8b) using direct fetch —
- * no SDK needed for the simple non-streaming /api/chat call.
+ * Ollama-backed mentor (Milestone 4: structured mentor + English coach).
+ * Talks to the local Ollama HTTP API with the configured model
+ * (default qwen3:8b) using direct fetch — no SDK needed for the simple
+ * non-streaming /api/chat call. `format: "json"` asks Ollama for
+ * JSON-only output, but the result is still validated, never trusted.
  *
  * Conversation context comes from the per-session ConversationStore:
- * recent turns are prepended to every request so follow-ups like
+ * recent answers are prepended to every request so follow-ups like
  * "How do I store it?" resolve against earlier messages.
  */
 export class OllamaMentorService implements MentorService {
@@ -36,7 +40,7 @@ export class OllamaMentorService implements MentorService {
   public async getResponse(
     message: string,
     sessionId?: string
-  ): Promise<string> {
+  ): Promise<MentorResponse> {
     const userText = message.trim();
     const history = this.store.getHistory(sessionId);
     const startedAt = Date.now();
@@ -65,7 +69,8 @@ export class OllamaMentorService implements MentorService {
           body: JSON.stringify({
             model: this.model,
             messages,
-            stream: false
+            stream: false,
+            format: 'json'
           }),
           signal: controller.signal
         });
@@ -88,16 +93,28 @@ export class OllamaMentorService implements MentorService {
         throw await this.describeOllamaHttpError(res);
       }
 
-      const answer = await this.extractAnswer(res);
+      const rawContent = await this.extractContent(res);
 
-      // Only successful exchanges become future context.
-      this.store.appendTurn(sessionId, userText, answer);
+      // Validate the structured output; fall back to a usable plain
+      // answer instead of crashing or leaking parse errors.
+      const parsed = parseMentorResponse(rawContent, userText);
+      if (parsed.usedFallback) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[mentor] structured parse fallback (${parsed.reason}); ` +
+            'returning salvaged answer.'
+        );
+      }
+
+      // Only successful exchanges become future context. The plain
+      // answer (not the JSON envelope) is stored to keep context clean.
+      this.store.appendTurn(sessionId, userText, parsed.response.answer);
 
       // eslint-disable-next-line no-console
       console.log(
         `[mentor] Ollama request completed in ${Date.now() - startedAt} ms`
       );
-      return answer;
+      return parsed.response;
     } catch (error) {
       if (error instanceof MentorServiceError) {
         // eslint-disable-next-line no-console
@@ -158,7 +175,11 @@ export class OllamaMentorService implements MentorService {
     );
   }
 
-  private async extractAnswer(res: Response): Promise<string> {
+  /**
+   * Extract the raw message content string from a 200 Ollama payload.
+   * Structure validation happens later in the response parser.
+   */
+  private async extractContent(res: Response): Promise<string> {
     let data: OllamaChatResponse;
     try {
       data = (await res.json()) as OllamaChatResponse;

@@ -1,20 +1,38 @@
-# AI Coding Mentor — Local Backend (Milestone 3)
+# AI Coding Mentor — Local Backend (Milestone 4)
 
 Express + TypeScript server. The mentor answers come from **Qwen3 8B via
-local Ollama** through the `MentorService` interface. No voice, RAG,
+local Ollama** through the `MentorService` interface and are returned
+as a **structured response**: a concise English correction (only when
+meaningful) plus the coding answer. No voice, RAG,
 tools, SQLite, auth, or cloud APIs.
 
 ## Endpoints
 
 - `GET /health` → `{ "status": "ok" }`
 - `POST /api/chat` with `{ "message": "...", "conversationId"?: "..." }`
-  → `{ "answer": "..." }`
+  → `{ "english": { "needsCorrection": bool, "original": "...",
+  "corrected": "...", "explanation": "..." }, "answer": "..." }`
   - `400` when `message` is missing, not a string, or empty
   - `502` Ollama error / model missing / malformed model response
   - `503` Ollama not reachable
   - `504` Ollama request timeout
   - `500` unexpected errors
   - `404` JSON `{ "error": "Not found." }` for unknown routes
+
+## Structured response
+
+The model must return a single JSON object; the backend validates it
+(`server/src/services/mentorResponseParser.ts`):
+
+- `english.needsCorrection` must be boolean
+- `english.original/corrected/explanation` must be strings
+  (a `true` without a corrected sentence is downgraded to `false`)
+- `answer` must be a non-empty string
+
+Fallback (never crashes, never leaks parse errors): unparseable or
+off-schema output is salvaged — non-empty raw text becomes the answer
+with `needsCorrection: false`; otherwise a short generic message is
+returned. Failures are logged server-side with a short reason tag only.
 
 ## Prerequisites
 
@@ -70,13 +88,21 @@ npm run dev
 
 ```powershell
 Invoke-RestMethod http://localhost:3000/health
+# Correction case (needsCorrection=true expected):
 Invoke-RestMethod -Method Post http://localhost:3000/api/chat `
   -ContentType 'application/json' `
-  -Body '{"message":"What is JWT? Answer in 2 sentences."}'
+  -Body '{"message":"How I can implement authentication in React? Keep the answer short."}'
+# Clean-English case (needsCorrection=false expected):
+Invoke-RestMethod -Method Post http://localhost:3000/api/chat `
+  -ContentType 'application/json' `
+  -Body '{"message":"What is a JavaScript closure? Keep the answer short."}'
 # Follow-up uses conversation context:
 Invoke-RestMethod -Method Post http://localhost:3000/api/chat `
   -ContentType 'application/json' `
-  -Body '{"message":"How do I store it securely in React?"}'
+  -Body '{"message":"What is JWT? Keep answers short.", "conversationId":"demo"}'
+Invoke-RestMethod -Method Post http://localhost:3000/api/chat `
+  -ContentType 'application/json' `
+  -Body '{"message":"How do I store it?", "conversationId":"demo"}'
 ```
 
 ## Compile the extension
@@ -109,8 +135,9 @@ npm run compile
 ## Architecture note
 
 Routes depend only on the `MentorService` interface
-(`src/services/mentorService.ts`). `OllamaMentorService`
-(`src/services/ollamaMentorService.ts`) implements it with direct
-`fetch` calls to Ollama's `/api/chat` plus a per-session
-`ConversationStore`. The system prompt lives in
-`src/prompts/mentorSystemPrompt.ts`.
+(`src/services/mentorService.ts`), which now returns `MentorResponse`.
+`OllamaMentorService` (`src/services/ollamaMentorService.ts`) implements
+it with direct `fetch` calls to Ollama's `/api/chat` (`format: "json"`,
+validated by `src/services/mentorResponseParser.ts`) plus a per-session
+`ConversationStore` holding plain answers. The dual-role system prompt
+lives in `src/prompts/mentorSystemPrompt.ts`.

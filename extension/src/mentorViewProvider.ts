@@ -9,14 +9,12 @@ const DEFAULT_BACKEND_URL = 'http://localhost:3000';
 const DEFAULT_TIMEOUT_MS = 120000;
 
 /**
- * Sidebar chat provider (Milestone 2).
+ * Sidebar chat provider (Milestone 4: structured mentor response).
  *
  * Flow: WebView --(sendMessage)--> provider --HTTP--> backend /api/chat
- *        backend --(answer | error)--> provider --postMessage--> WebView
+ *        backend --({english, answer} | error)--> provider --postMessage--> WebView
  *
- * The mock response now lives in the backend (MockMentorService).
- * This file contains no AI logic — only transport + error mapping,
- * so Milestone 3 (Ollama) touches the server, not the extension.
+ * This file contains no AI logic — only transport + error mapping.
  */
 export class MentorViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewId = 'aiCodingMentor.chatView';
@@ -77,7 +75,8 @@ export class MentorViewProvider implements vscode.WebviewViewProvider {
       const reply = await client.sendMessage(userText);
       await this.view?.webview.postMessage({
         type: 'assistantResponse',
-        text: reply
+        answer: reply.answer,
+        english: reply.english
       });
     } catch (error) {
       const message =
